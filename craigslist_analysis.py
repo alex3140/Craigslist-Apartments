@@ -7,11 +7,6 @@ from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import GradientBoostingRegressor
 
-#Add furniture to model?
-#Do cross-validation
-#Take care of missing footage
-#Plot data on a map
-
 data=pd.read_csv('C:\\Users\\alex314\\Desktop\\CraigslistProject\\craigslist_data.csv')
 data=data.dropna()
 
@@ -41,7 +36,7 @@ ax4.set_ylabel("Number of Bedrooms")
 #Remove unusual observations 
 #In most cases such listings contain mistakes
 #or are not real apartments
-data = data[data.footage<8000]
+data = data[data.footage<3000]
 data = data[data.footage>250]
 data = data[data.price>800]
 data = data[data.price<9000]
@@ -58,7 +53,43 @@ X = data[features]
 Y = data['price']
 
 Xtrain, Xtest, Ytrain, Ytest = cross_validation.train_test_split(
-        X, Y, test_size=0.02, random_state=12533)
+        X, Y, test_size=0.05, random_state=777)
+
+#Gradient boosting model           
+boost=GradientBoostingRegressor()
+boost.fit(Xtrain, Ytrain)
+boost.predict(Xtest)
+RMSEs_boost = [mean_squared_error(
+            Ytest, boost.predict(Xtest))**.5, 
+            mean_squared_error(Ytrain, boost.predict(Xtrain))**.5]
+MedAPE_test = (abs(Ytest - boost.predict(Xtest)) / Ytest).median()
+MeanAPE_test = (abs(Ytest - boost.predict(Xtest)) / Ytest).mean() 
+
+percent = sum(abs(Ytest - boost.predict(Xtest)) / Ytest < .1) / float(Ytest.shape[0])
+       
+print "***(Stochastic) Gradient Boosting Tree Model***"
+print "Median Absolute Percentage Error: %s" %(round(MedAPE_test,4) * 100), "%"
+print "Mean Absolute Percentage Error:", round(MeanAPE_test,5) * 100, "%"
+print "Percentage of predictions with error below 10%:", round(percent, 4) * 100, "%"
+print "Root MSE on train set: %s, Root MSE on test set: %s" \
+        %(round(RMSEs_boost[0], 1),round(RMSEs_boost[1], 1))
+print "R-square is %s" %(round(r2_score(Ytest,boost.predict(Xtest)), 4) * 100),"%"
+
+featImportances = boost.feature_importances_
+pos = np.arange(len(features))
+pairs = zip(features, featImportances)
+sorted_pairs = sorted(pairs, key = lambda pair: pair[1])
+features_sorted, featImportances_sorted = zip(*sorted_pairs)
+fig, ax = plt.subplots()
+plt.barh(pos, featImportances_sorted, 1, color = "blue")
+plt.yticks(pos,features_sorted)
+ax.set_title('Gradient Boosting: Relative Feature Importance')
+
+prediction = pd.Series(boost.predict(Xtest).round(1), index=Xtest.index)
+prediction.columns=["prediction"]
+table=data.ix[Ytest.index]
+comparison_tbl=pd.concat([prediction, table[["price", "type", "footage","num_br","num_ba","url"]]],axis=1)
+print comparison_tbl
 
 #Is it not OK to use knn with discrete features?
 knn = KNeighborsRegressor(weights="distance") #weights=uniform by default
@@ -74,34 +105,6 @@ table=data.ix[Ytest.index]
 comparison_tbl=pd.concat([prediction, table[["price", "type", "url"]]],axis=1)
 
 
-#Linear Regression
-lm = linear_model.LinearRegression()
-lm.fit(Xtrain, Ytrain)
-lm.predict(Xtest)
-RMSEs_lm = [mean_squared_error(
-            Ytest, lm.predict(Xtest))**.5, 
-            mean_squared_error(Ytrain, lm.predict(Xtrain))**.5]
-print RMSEs_lm
-
-#Gradient boosting model           
-boost=GradientBoostingRegressor()
-boost.fit(Xtrain, Ytrain)
-boost.predict(Xtest)
-RMSEs_boost = [mean_squared_error(
-            Ytest, boost.predict(Xtest))**.5, 
-            mean_squared_error(Ytrain, boost.predict(Xtrain))**.5]
-print RMSEs_boost
-
-#Fix this plot!!
-featImportances = boost.feature_importances_
-pos= arange(len(features))+0.5
-fig, ax = plt.subplots()
-plt.yticks(pos,features)
-plt.barh(pos,featImportances, 1, color="blue")
-ax.set_title('Gradient Boosting: Feature Importance')
-
-prediction = pd.Series(boost.predict(Xtest).round(1), index=Xtest.index)
-prediction.columns=["prediction"]
-table=data.ix[Ytest.index]
-comparison_tbl=pd.concat([prediction, table[["price", "type", "footage","num_br","num_ba","url"]]],axis=1)
-print comparison_tbl
+#Add furniture to model?
+#Take care of missing footage
+#Plot data on a map
